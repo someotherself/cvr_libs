@@ -366,8 +366,8 @@ CVRS_API int cvr_fixed_to_lowercase_init(const cvr_fixed_str *pString, cvr_dynam
 /* cvr_dynamic_str functions  */
 
 CVRS_API int cvr_dynamic_with_capacity_init(size_t capacity, cvr_dynamic_str *pstring);
-cvrs_api int cvr_dynamic_from_parts_init(const char *pdata, size_t len, cvr_dynamic_str *pstring);
-cvrs_api int cvr_dynamic_from_cstr_init(const char *pcstr, cvr_dynamic_str *pstring);
+CVRS_API int cvr_dynamic_from_parts_init(const char *pdata, size_t len, cvr_dynamic_str *pstring);
+CVRS_API int cvr_dynamic_from_cstr_init(const char *pcstr, cvr_dynamic_str *pstring);
 CVRS_API void cvr_dynamic_uninit(cvr_dynamic_str *pString);
 
 CVRS_API int cvr_dynamic_to_cstr(const cvr_dynamic_str *pString, char *dest);
