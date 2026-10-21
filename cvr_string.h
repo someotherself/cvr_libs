@@ -173,6 +173,16 @@ SOFTWARE.
             cvr_fixed_to_uppercase_init(const cvr_fixed_str *pString, cvr_dynamic_str *pOutput);
             cvr_fixed_to_lowercase_init(const cvr_fixed_str *pString, cvr_dynamic_str *pOutput);
 
+    - Matching
+
+        A searching algorithm can be used to check if a string contains another cvr_fixed_str
+        or a cstr.
+        This uses the two way searching algorith. This algorithm can also be used directly,
+        as explained further in the docs.
+
+            cvr_fixed_contains(cvr_fixed_str *pString, const cvr_fixed_str *pOtherString);
+            cvr_fixed_contains_start_at(cvr_fixed_str *pString, const cvr_fixed_str *pOtherString, int index);
+
     - String iterators
     
         The cvr_split_str is a type that allows to iterate over words, lines or
@@ -234,6 +244,37 @@ SOFTWARE.
             cvr_dynamic_append_cstr(cvr_dynamic_str *pString, const char *pCstr);
             cvr_dynamic_append_at(cvr_dynamic_str *pString, const cvr_fixed_str *pOtherString, int index);
             cvr_dynamic_append_cstr_at(cvr_dynamic_str *pString, const char *pCstr, int index);
+
+    3.0 cvr_str_searcher
+
+    This library exposes an API to use the searching algorithm directly,
+    and get matches one by one by calling next on an iterator.
+
+    The iterator returns a cvr_search_match which can be cast to a
+    cvr_fixed_str and it also contains the start and end indexes.
+    These are absolute indexes into the haystack.
+
+    Example:
+
+    cvr_fixed_str haystack, needle;
+    cvr_str_searcher twoWaySearcher;
+    int result;
+
+    haystack = cvr_fixed_from_cstr("This is a sentence with many words and even many more words");
+    needle = cvr_fixed_from_cstr("many");
+    
+    twoWaySearcher = cvr_str_searcher_new_search(&haystack, &needle);
+
+    for (;;) {
+        cvr_search_match match;
+
+        result = cvr_str_searcher_next(&twoWaySearcher, &match);
+        if (result == -1) {
+            break;
+        }
+
+        printf("Found match at pos: %ld\n", match.start);
+    }
 */
 
 #ifndef CVRS_H
