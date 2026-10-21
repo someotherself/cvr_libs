@@ -288,7 +288,7 @@ SOFTWARE.
 #define CVRS_VERSION_REVISION   0
 #define CVRS_VERSION_STRING     CVRS_XSTRINGIFY(CVRS_VERSION_MAJOR) "." CVRS_XSTRINGIFY(CVRS_VERSION_MINOR) "." CVRS_XSTRINGIFY(CVRS_VERSION_REVISION)
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define CVRW_MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #include <assert.h>
 #include <ctype.h>
@@ -1434,7 +1434,7 @@ CVRS_API cvr_str_searcher cvr_str_searcher_new_search(const cvr_fixed_str *pStri
         reverse_maximal_suffix(pPattern, period, CVRS_FALSE, &tRevIdxFalse);
         reverse_maximal_suffix(pPattern, period, CVRS_TRUE, &tRevIdxTrue);
         
-        critPosBack = pPattern->len - MAX(tRevIdxFalse, tRevIdxTrue);
+        critPosBack = pPattern->len - CVRW_MAX(tRevIdxFalse, tRevIdxTrue);
 
         while (i < pPattern->len - 1) {
             byteset |= (uint64_t)1 << (pattern[i] & 0x3f);
@@ -1452,7 +1452,7 @@ CVRS_API cvr_str_searcher cvr_str_searcher_new_search(const cvr_fixed_str *pStri
             i++;
         }
 
-        outSearcher.period = MAX(critPos, pPattern->len - critPos) + 1;
+        outSearcher.period = CVRW_MAX(critPos, pPattern->len - critPos) + 1;
         outSearcher.critPos = critPos;
         outSearcher.critPosBack = critPos;
         outSearcher.byteset = byteset;
