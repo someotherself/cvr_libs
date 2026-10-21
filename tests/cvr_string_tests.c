@@ -310,7 +310,7 @@ void assert_fixed_next_until_delim()
     while (split.len > 0) {
         cvr_fixed_str words;
         
-        cvr_fixed_printfln(&words);
+        words = cvr_split_next_until_delim(&split, &needle);
 
         matches += 1;
     }
