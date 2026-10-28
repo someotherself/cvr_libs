@@ -10,7 +10,7 @@
 void cvr_path_test_init()
 {
     cvr_path path1;
-    path1 = cvr_path_from_cstr(L"/path/main.c");
+    path1 = cvr_path_from_cstr_w(L"/path/main.c");
 
     assert(path1.len == 12);
 }
