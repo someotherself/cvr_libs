@@ -16,6 +16,7 @@
 #include <wchar.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 
 #ifndef CVRP_API
 #define CVRP_API
@@ -94,8 +95,8 @@ static void cvr_path_from_parts_internal(const cvr_path *pPath, cvr_path *fileNa
     size_t len = end - start;
 
     #ifdef CVRP_WIN
-    assert(finalLen % 2 == 0);
-    fileName->path = (const char*)pPath->path->pData + start;
+    assert(len % 2 == 0);
+    fileName->path.pData = (const char*)pPath->path.pData + start;
     fileName->len = len / 2;
     fileName->path.len = len;
     #else
@@ -136,7 +137,11 @@ static int write_all_to_fd(const char *pData, size_t len, FILE *pFile)
 static cvr_buf cvr_buf_from_parts(const void *pData, size_t len)
 {
     cvr_buf path;
+    #ifdef CVRP_WIN
+    path.len = 2 * len;
+    #else
     path.len = len;
+    #endif
     path.pData = pData;
     return path;
 }
@@ -152,8 +157,8 @@ CVRP_API cvr_path cvr_path_from_parts_w(const wchar_t *pData, size_t len)
     cvr_path path;
     cvr_buf buf = cvr_buf_from_parts((const void*)pData, len);
 
-    path.len = len * 2; /* We are counting raw bytes here */
-    path.pData = buf;
+    path.len = len; /* We are counting raw bytes here */
+    path.path = buf;
     return path;
 }
 #else
@@ -179,7 +184,6 @@ CVRP_API int cvr_path_file_name(const cvr_path *pPath, cvr_path *fileName)
     size_t i;
     size_t end, start, finalLen;
     const char* path = (const char*)(pPath->path.pData);
-    cvr_buf tmp = {0};
 
     if (pPath == NULL || pPath->len == 0) {
         return -1;
@@ -189,7 +193,11 @@ CVRP_API int cvr_path_file_name(const cvr_path *pPath, cvr_path *fileName)
     for (i = pPath->path.len; i > 0; ) {
         i--;
         if (path[i] != '\0' && path[i] != CVRP_SEPARATOR && path[i] != '.') {
+            #ifndef CVRP_WIN
             i++; /* We must include the current byte we stopped at */
+            #else
+            i += 2;
+            #endif
             break;
         }
     }
@@ -203,7 +211,11 @@ CVRP_API int cvr_path_file_name(const cvr_path *pPath, cvr_path *fileName)
     for (i; i > 0; ) {
         i--;
         if (path[i] == CVRP_SEPARATOR) {
+            #ifdef CVRP_WIN /* We must include the current byte we stopped at */
+            i += 2;
+            #else
             i++;
+            #endif
             break;
         }
     }
@@ -244,7 +256,8 @@ CVRP_API int cvr_path_extension(const cvr_path *pPath, cvr_path *extension)
 {
     cvr_path tmp = {0};
     const char* path;
-    int result, i;
+    int result;
+    size_t i;
 
     if (pPath == NULL || pPath->len == 0) {
         return -1;
@@ -259,7 +272,11 @@ CVRP_API int cvr_path_extension(const cvr_path *pPath, cvr_path *extension)
     for (i = tmp.path.len; i > 0; ) {
         i--;
         if (path[i] == '.') {
+            #ifdef CVRP_WIN
+            i += 2;
+            #else
             i++;
+            #endif
             break;
         }
         /* 
@@ -277,6 +294,8 @@ CVRP_API int cvr_path_extension(const cvr_path *pPath, cvr_path *extension)
 
 CVRP_API cvrp_bool8 cvr_path_eq(const cvr_path *pPath, const cvr_path *pOtherPath)
 {
+    int result;
+
     if (pPath == NULL || pOtherPath == NULL) {
         return CVRP_FALSE;
     }
@@ -318,7 +337,8 @@ CVRP_API int cvr_path_fprintf(const cvr_path *pPath, FILE *pFile)
 CVRP_API int cvr_path_fprintfln(const cvr_path *pPath, FILE *pFile)
 {
     char* tBuffer;
-    int result, len;
+    int result;
+    size_t len;
 
     if (pPath == NULL) {
         return -1;

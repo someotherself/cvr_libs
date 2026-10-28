@@ -1,6 +1,6 @@
 
 #define CVRP_IMPLEMENTATION
-#include "./../local_cvr_path.h"
+#include "./../cvr_path.h"
 
 #include <stdio.h>
 #include <string.h>
