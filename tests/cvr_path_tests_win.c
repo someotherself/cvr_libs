@@ -171,6 +171,32 @@ void cvr_path_test_stem()
     assert(cvr_path_eq(&stem2, &stemCheck2));
 }
 
+void cvr_path_text_exists()
+{
+    cvr_path path1 = {0};
+    cvr_path path2 = {0};
+    
+    path1 = cvr_path_from_cstr_w(L"cvr_path_tests.c");
+    path1 = cvr_path_from_cstr_w(L"some_path");
+
+    assert(cvr_path_exists(&path1));
+    assert(!cvr_path_exists(&path2));
+}
+
+void cvr_dynamic_path_test_init()
+{
+    int result;
+
+    cvr_dynamic_path path;
+    result = cvr_dynamic_path_from_cstr_init_w("/path/main.c", &path);
+    assert(result == 0);
+
+    assert(path.path.path.len == 24);
+    assert(path.path.len == 12);
+
+    cvr_dynamic_path_uninit(&path);
+}
+
 void main()
 {
     #ifndef _WIN32
@@ -181,6 +207,8 @@ void main()
     cvr_path_test_filename();
     cvr_path_test_extension();
     cvr_path_test_stem();
+    cvr_path_text_exists();
+    cvr_dynamic_path_test_init();
 
     printf("ALL TESTS PASS\n");
 }

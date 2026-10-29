@@ -10,13 +10,15 @@
 #define CVRP_VERSION_REVISION   0
 #define CVRP_VERSION_STRING     CVRP_XSTRINGIFY(CVRP_VERSION_MAJOR) "." CVRP_XSTRINGIFY(CVRP_VERSION_MINOR) "." CVRP_WSTRINGIFY(CVRP_VERSION_REVISION)
 
+#include <assert.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <wchar.h>
 #include <string.h>
-#include <errno.h>
-#include <assert.h>
+
+#include <sys/types.h>
+#include <sys/stat.h> /* for stat/_stat*/
 
 #ifndef CVRP_API
 #define CVRP_API
@@ -24,6 +26,8 @@
 
 #ifdef _WIN32
 #define CVRP_WIN
+#include <direct.h> /* for _wgetcwd */
+#include <wchar.h>
 #endif
 
 #ifdef CVRP_WIN
@@ -36,6 +40,9 @@ typedef uint8_t cvrp_bool8;
 #define CVRP_TRUE   1
 #define CVRP_FALSE  0
 
+/* We don't double the capacity on grow. Instead we grow by a fixed size */
+#define PATH_CAP_GROW_SIZE   256
+
 /* Underlying type-erased path storage. len measures raw bytes */
 typedef struct {
     const void *pData;
@@ -47,7 +54,7 @@ typedef struct cvr_path cvr_comp;
 
 /* len measures real char or wchar_t count */
 struct cvr_path {
-    cvr_buf path;
+    cvr_buf path; /* rename to buf */
     size_t len;
 };
 
@@ -74,7 +81,7 @@ CVRP_API int cvr_path_add_ext(const cvr_path *pPath, const cvr_path *pExt);
 CVRP_API int cvr_path_change_ext(const cvr_path *pPath, const cvr_path *pExt);
 */
 
-CVRP_API int cvr_path_exists(const cvr_path *output);
+CVRP_API cvrp_bool8 cvr_path_exists(const cvr_path *pPath);
 CVRP_API int cvr_path_cwd(cvr_path *output);
 
 CVRP_API cvrp_bool8 cvr_path_eq(const cvr_path *pPath, const cvr_path *pOtherPath);
@@ -86,9 +93,49 @@ CVRP_API int cvr_path_printfln(const cvr_path *pPath);
 CVRP_API int cvr_path_fprintf(const cvr_path *pPath, FILE *pFile);
 CVRP_API int cvr_path_fprintfln(const cvr_path *pPath, FILE *pFile);
 
+/* cvr_dynamic_path functions */
+
+#ifdef CVRP_WIN
+CVRP_API int cvr_dynamic_path_from_cstr_init_w(const wchar_t *pCstr, cvr_dynamic_path *pOutput);
+CVRP_API int cvr_dynamic_path_from_parts_init_w(const wchar_t *pData, size_t len, cvr_dynamic_path *Output);
+#else
+CVRP_API int cvr_dynamic_path_from_cstr_init(const char *pCstr, cvr_dynamic_path *pOutput);
+CVRP_API int cvr_dynamic_path_from_parts_init(const char *pData, size_t len, cvr_dynamic_path *pOutput);
+#endif
+CVRP_API void cvr_dynamic_path_uninit(cvr_dynamic_path *pPath);
 #endif /* CVRP_H */
 
+typedef struct {
+    cvr_path *path;
+    size_t pathCount;
+    cvrp_bool8 recursive;
+    size_t maxDepth;
+    cvrp_walker_vtable vtable;
+} cvrp_walker_config;
+
+
+typedef struct {
+
+} cvrp_walker_vtable;
+
 #ifdef CVRP_IMPLEMENTATION
+
+static size_t next_multiple_of(size_t value, size_t multiple)
+{
+    size_t remainder = 0;
+
+    if (multiple == 0) {
+        return 0;
+    }
+    
+    remainder = value % multiple;
+
+    if (remainder == 0) {
+        return value;
+    } else {
+        return value + (multiple - remainder);
+    }
+}
 
 static void cvr_path_from_parts_internal(const cvr_path *pPath, cvr_path *fileName, size_t start, size_t end)
 {
@@ -177,7 +224,6 @@ CVRP_API cvr_path cvr_path_from_parts(const char *pData, size_t len)
     return path;
 }
 #endif
-
 
 CVRP_API int cvr_path_file_name(const cvr_path *pPath, cvr_path *fileName)
 {
@@ -292,6 +338,89 @@ CVRP_API int cvr_path_extension(const cvr_path *pPath, cvr_path *extension)
     return 0;
 }
 
+#ifdef CVRP_WIN
+CVRP_API cvrp_bool8 cvr_path_exists(const cvr_path *pPath)
+{
+    struct _stat info;
+    wchar_t *path;
+    void *pData;
+    int result;
+
+    if (pPath == NULL || pPath->len == 0) {
+        return CVRP_FALSE;
+    }
+
+    pData = malloc(pPath->path.len + 2);
+    if (pData == NULL) {
+        return CVRP_FALSE;
+    }
+
+    memcpy(pData, pPath->path.pData, pPath->path.len);
+    *((wchar_t*)pData + pPath->len) = L'\0';
+
+    result = _wstat((wchar_t*)&pData, &info);
+    if (result == 1) {
+        free(pData);
+        return CVRP_FALSE;
+    }
+
+    free(pData);
+    return CVRP_TRUE;
+}
+
+/*
+CVRP_API int cvr_path_cwd(cvr_path *output)
+{
+    wchar_t tmp[1024];
+    
+    if (_wgetcwd(&tmp, (int)(sizeof(cur) / sizeof(tmp[0]))) == NULL) {
+        return -1;
+    }
+    TODO: wcslen
+}
+*/
+#else
+CVRP_API cvrp_bool8 cvr_path_exists(const cvr_path *pPath)
+{
+    struct stat info;
+    char *path;
+    void *pData;
+    int result;
+
+    if (pPath == NULL || pPath->len == 0) {
+        return CVRP_FALSE;
+    }
+    
+    pData = malloc(pPath->path.len + 1);
+    if (pData == NULL) {
+        return CVRP_FALSE;
+    }
+
+    memcpy(pData, pPath->path.pData, pPath->path.len);
+    *((char*)pData + pPath->len) = '\0';
+
+    result = stat((char*)&pData, &info);
+    if (result == 1) {
+        free(pData);
+        return CVRP_FALSE;
+    }
+
+    free(pData);
+    return CVRP_TRUE;
+}
+
+/*
+CVRP_API int cvr_path_cwd(cvr_path *output)
+{
+    wchar_t tmp[1024];
+
+    if (getcwd(&cur, sizeof(cur)) == NULL) {
+        return -1;
+    }
+}
+*/
+#endif
+
 CVRP_API cvrp_bool8 cvr_path_eq(const cvr_path *pPath, const cvr_path *pOtherPath)
 {
     int result;
@@ -359,4 +488,63 @@ CVRP_API int cvr_path_fprintfln(const cvr_path *pPath, FILE *pFile)
     return result;
 }
 
+/* cvr_dynamic_path implementations */
+
+#ifdef CVRP_WIN
+CVRP_API int cvr_dynamic_path_from_cstr_init_w(const wchar_t *pPath, cvr_dynamic_path *output)
+{
+    return cvr_dynamic_path_from_parts_init((void*)pPath, wcslen(pCstr) * sizeof(wchar_t), output);
+}
+#else
+CVRP_API int cvr_dynamic_path_from_cstr_init(const char *pPath, cvr_dynamic_path *pOutput)
+{
+    return cvr_dynamic_path_from_parts_init((void*)pPath, strlen(pPath), pOutput);
+}
 #endif
+
+/* len must always count raw bytes */
+CVRP_API int cvr_dynamic_path_from_parts_init(const char *pData, size_t len, cvr_dynamic_path *pOutput)
+{
+    size_t capacity;
+    void* pNewData;
+
+    if (pData == NULL) {
+        return -1;
+    }
+    #ifdef CVRP_WIN
+    assert(len % sizeof(wchar_t) == 0);
+    #endif
+
+    capacity = next_multiple_of(len, PATH_CAP_GROW_SIZE);
+
+    pNewData = malloc(capacity);
+    if (pNewData == NULL) {
+        return -1;
+    }
+
+    memcpy(pNewData, pData, len);
+
+    pOutput->path.path.pData = pNewData;
+    pOutput->capacity = capacity;
+    #ifdef CVRP_WIN
+    pOutput->path.len = len / 2;
+    #else
+    pOutput->path.len = len;
+    #endif
+    pOutput->path.path.len = len;
+
+    return 0;
+}
+
+CVRP_API void cvr_dynamic_path_uninit(cvr_dynamic_path *pPath)
+{
+    if (pPath == NULL) {
+        return;
+    }
+
+    free((void*)pPath->path.path.pData);
+}
+
+/* Directory walker implementations */
+
+#endif /* CVRP_IMPLEMENTATION */
